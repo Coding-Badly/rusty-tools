@@ -73,7 +73,8 @@ jobs:
         with:
           tag_name: "current"
           files: |
-            ami-helper/linux/ami-helper
-            ami-helper/windows/ami-helper.exe
+            ./ami-helper/linux/ami-helper
+            ./ami-helper/windows/ami-helper.exe
       - name: "Brag #2"
-        run: echo "${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}"
+#        run: echo "${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}"
+        run: echo "${{ steps.release.outputs.assets }}"
