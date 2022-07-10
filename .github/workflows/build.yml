@@ -28,7 +28,7 @@ jobs:
         path: ./target/release/ami-helper.exe
 
   job-linux-1:
-    name: "Build the Linux version"
+    name: "Build the Linux version of ami-helper"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
