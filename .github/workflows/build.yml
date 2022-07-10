@@ -70,6 +70,6 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files:
-            - ami-helper/linux/ami-helper
-            - ami-helper/windows/ami-helper.exe
+          files: |
+            ami-helper/linux/ami-helper
+            ami-helper/windows/ami-helper.exe
