@@ -26,7 +26,7 @@ jobs:
       run: cargo fetch
       shell: bash
     - name: Build release version
-      run: cargo build --release
+      run: TARGET_CC=$(uname -m)-linux-musl-gcc cargo build --target $(uname -m)-unknown-linux-musl --release
     - uses: actions/upload-artifact@v3
       with:
         name: ami-helper-linux-1
