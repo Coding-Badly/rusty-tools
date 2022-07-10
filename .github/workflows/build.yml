@@ -65,11 +65,15 @@ jobs:
         with:
           name: ami-helper-windows-1
           path: ami-helper/windows/ami-helper.exe
-      - name: "Brag"
+      - name: "Brag #1"
         run: find .
       - name: Release
         uses: softprops/action-gh-release@v1
+        tag_name: "current"
+        id: release
         with:
           files: |
             ami-helper/linux/ami-helper
             ami-helper/windows/ami-helper.exe
+      - name: "Brag #2"
+        run: echo "${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}"
