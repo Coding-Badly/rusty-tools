@@ -67,3 +67,9 @@ jobs:
           path: ami-helper/windows/ami-helper.exe
       - name: "Brag"
         run: find .
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files:
+            - ami-helper/linux/ami-helper
+            - ami-helper/windows/ami-helper.exe
