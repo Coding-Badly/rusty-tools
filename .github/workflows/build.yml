@@ -1,0 +1,48 @@
+name: "Build ami-helper"
+
+on:
+  push:
+    branchs:
+      - master
+
+jobs:
+
+  job-windows-1:
+    name: "Build the Windows version of ami-helper"
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: "Remove Rust documentation"
+      run: rustup component remove rust-docs
+      continue-on-error: true
+    - name: "Update Rust to the latest stable version"
+      run: rustup update stable
+    - name: Fetch Dependencies
+      run: cargo fetch
+      shell: bash
+    - name: Build release version
+      run: cargo build --release
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ami-helper-windows-1
+        path: ./target/release/ami-helper.exe
+
+  job-linux-1:
+    name: "Build the Linux version"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: "Remove Rust documentation"
+      run: rustup component remove rust-docs
+      continue-on-error: true
+    - name: "Update Rust to the latest stable version"
+      run: rustup update stable
+    - name: Fetch Dependencies
+      run: cargo fetch
+      shell: bash
+    - name: Build release version
+      run: cargo build --release
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ami-helper-linux-1
+        path: ./target/release/ami-helper
