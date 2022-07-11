@@ -12,14 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
+    - name: "Install GCC"
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential
+        gcc --version
+    - name: "Add support for MUSL"
+      run: |
+        sudo apt update
+        sudo apt install -y musl-tools
+        rustup target add $(uname -m)-unknown-linux-musl
     - name: "Remove Rust documentation"
       run: rustup component remove rust-docs
       continue-on-error: true
-    - name: "Add support for MUSL"
-      run: |
-        rustup target add $(uname -m)-unknown-linux-musl
-        sudo apt update
-        sudo apt install -y musl-tools
     - name: "Update Rust to the latest stable version"
       run: rustup update stable
     - name: Fetch Dependencies
