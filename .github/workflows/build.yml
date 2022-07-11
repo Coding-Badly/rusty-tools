@@ -20,9 +20,9 @@ jobs:
     - name: "Add support for MUSL"
       run: |
         sudo apt update
-        sudo apt install -y musl
         sudo apt install -y musl-tools
         rustup target add $(uname -m)-unknown-linux-musl
+#        sudo apt install -y musl
 #    - name: "Find MUSL stuff"
 #      run: sudo find / -name "*musl*" 2> /dev/null
 #    - name: "Update the operating system"
@@ -41,10 +41,12 @@ jobs:
 #      run: TARGET_CC=$(uname -m)-linux-musl-gcc cargo build --target $(uname -m)-unknown-linux-musl --release
     - name: Build release version
       run: cargo build --target $(uname -m)-unknown-linux-musl --release
+    - name: "Brag #1"
+      run: find ./target
     - uses: actions/upload-artifact@v3
       with:
         name: ami-helper-linux-1
-        path: ./target/release/ami-helper
+        path: ./target/release/$(uname -m)-unknown-linux-musl/ami-helper
         retention-days: 6
 
 #  job-windows-1:
