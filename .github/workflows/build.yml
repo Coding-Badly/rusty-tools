@@ -42,13 +42,17 @@ jobs:
     - name: Build release version
       run: cargo build --target $(uname -m)-unknown-linux-musl --release
     - name: "Brag #1"
-      run: find ./target
+      run: find ./target -name "ami-helper"
+#    - uses: actions/upload-artifact@v3
+#      with:
+#        name: ami-helper-linux-1
+#        path: ./target/$(uname -m)-unknown-linux-musl/release/ami-helper
+#        retention-days: 6
     - uses: actions/upload-artifact@v3
       with:
         name: ami-helper-linux-1
-        path: ./target/release/$(uname -m)-unknown-linux-musl/ami-helper
+        path: ./target/x86_64-unknown-linux-musl/release/ami-helper
         retention-days: 6
-
 #  job-windows-1:
 #    name: "Build the Windows version of ami-helper"
 #    runs-on: windows-latest
