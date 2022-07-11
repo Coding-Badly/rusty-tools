@@ -20,12 +20,15 @@ jobs:
     - name: "Add support for MUSL"
       run: |
         sudo apt update
+        sudo apt install -y musl
         sudo apt install -y musl-tools
         rustup target add $(uname -m)-unknown-linux-musl
-    - name: "Update the operating system"
-      run: |
-        sudo apt update
-        sudo apt upgrade -y
+    - name: "Find MUSL stuff"
+      run: sudo find / -name "*musl*" 2> /dev/null
+#    - name: "Update the operating system"
+#      run: |
+#        sudo apt update
+#        sudo apt upgrade -y
     - name: "Remove Rust documentation"
       run: rustup component remove rust-docs
       continue-on-error: true
