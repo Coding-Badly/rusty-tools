@@ -23,8 +23,8 @@ jobs:
         sudo apt install -y musl
         sudo apt install -y musl-tools
         rustup target add $(uname -m)-unknown-linux-musl
-    - name: "Find MUSL stuff"
-      run: sudo find / -name "*musl*" 2> /dev/null
+#    - name: "Find MUSL stuff"
+#      run: sudo find / -name "*musl*" 2> /dev/null
 #    - name: "Update the operating system"
 #      run: |
 #        sudo apt update
@@ -37,8 +37,10 @@ jobs:
     - name: Fetch Dependencies
       run: cargo fetch
       shell: bash
+#    - name: Build release version
+#      run: TARGET_CC=$(uname -m)-linux-musl-gcc cargo build --target $(uname -m)-unknown-linux-musl --release
     - name: Build release version
-      run: TARGET_CC=$(uname -m)-linux-musl-gcc cargo build --target $(uname -m)-unknown-linux-musl --release
+      run: cargo build --target $(uname -m)-unknown-linux-musl --release
     - uses: actions/upload-artifact@v3
       with:
         name: ami-helper-linux-1
