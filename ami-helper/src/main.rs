@@ -1083,7 +1083,7 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
     }
 
     if options.smoke_test {
-        print!("--image-id {} --instance-type {}.medium", details[0].ami, options.instance_group());
+        print!("--image-id \"{}\" --instance-type \"{}.medium\"", details[0].ami, options.instance_group());
     } else if options.just_ami {
         if details.len() == 1 {
             print!("{}", details[0].ami);
