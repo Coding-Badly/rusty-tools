@@ -17,6 +17,7 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-ssm",
+ "aws-types",
  "clap",
  "futures-util",
  "once_cell",

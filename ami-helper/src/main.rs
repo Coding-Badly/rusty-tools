@@ -6,6 +6,7 @@ use std::process::{ExitCode, Termination};
 
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_ssm::Client;
+use aws_types::region::Region;
 use clap::{value_t, App, AppSettings, Arg, ArgMatches};
 use futures_util::stream::StreamExt;
 use once_cell::sync::Lazy;
@@ -148,6 +149,7 @@ struct SelectOptions {
     singleton: bool,
     just_ami: bool,
     smoke_test: bool,
+    region: String,
 }
 
 impl SelectOptions {
@@ -216,6 +218,17 @@ fn build_operating_system_arg<'a>() -> Arg<'a> {
         .value_parser(["all", "amazon", "debian", "ubuntu"])
 }
 
+fn build_region_arg<'a>() -> Arg<'a> {
+    Arg::new("region")
+        .help("Use this AWS region")
+        .short('r')
+        .long("region")
+        .takes_value(true)
+        .multiple(false)
+        .required(false)
+        .default_value("us-east-2")
+}
+
 fn build_singleton_arg<'a>() -> Arg<'a> {
     Arg::new("singleton")
         .help("Exit with an error if more than one AMI is selected")
@@ -281,6 +294,10 @@ fn get_operating_system_arg(matches: &ArgMatches) -> Result<OperatingSystem, cla
     }
 }
 
+fn get_region_arg(matches: &ArgMatches) -> Result<String, clap::Error> {
+    value_t!(matches, "region", String)
+}
+
 fn get_singleton_arg(matches: &ArgMatches) -> Result<bool, clap::Error> {
     Ok(matches.is_present("singleton"))
 }
@@ -302,6 +319,7 @@ mod select {
             .arg(super::build_architecture_arg())
             .arg(super::build_just_ami_arg())
             .arg(super::build_operating_system_arg())
+            .arg(super::build_region_arg())
             .arg(super::build_singleton_arg())
             .arg(super::build_smoke_test_arg())
     }
@@ -312,12 +330,14 @@ mod select {
         let just_ami = super::get_just_ami_arg(matches)?;
         let singleton = super::get_singleton_arg(matches)?;
         let smoke_test = super::get_smoke_test_arg(matches)?;
+        let region = super::get_region_arg(matches)?;
         Ok(SelectOptions {
             operating_system,
             architecture,
             singleton,
             just_ami,
             smoke_test,
+            region,
         })
     }
 }
@@ -732,8 +752,8 @@ struct NameAmiPairGetter {
 }
 
 impl NameAmiPairGetter {
-    async fn new() -> Self {
-        let region_provider = RegionProviderChain::default_provider().or_else("us-east-2");
+    async fn new(region: Region) -> Self {
+        let region_provider = RegionProviderChain::first_try(region);
         let config = aws_config::from_env().region(region_provider).load().await;
         let client = Client::new(&config);
 
@@ -1006,7 +1026,7 @@ impl DetailsReporter {
 }
 
 async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Error>> {
-    let getter = NameAmiPairGetter::new().await;
+    let getter = NameAmiPairGetter::new(Region::new(options.region.clone())).await;
     let mut all_segments = StringsToBitmask::new();
     all_segments.alias("x86_64", "amd64");
     let mut operating_systems: Vec<AmiDetailsWithFilter> = Vec::new();
