@@ -13,3 +13,6 @@ jobs:
       image: ubuntu-2204:2022.04.1
     steps:
       - checkout
+      - run:
+          name: "smoke-test-ubuntu"
+          command: make smoke-test-ubuntu
