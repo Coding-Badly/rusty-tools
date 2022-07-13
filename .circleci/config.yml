@@ -8,5 +8,8 @@ workflows:
 
 jobs:
   example-1:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2204:2022.04.1
     steps:
       - checkout
