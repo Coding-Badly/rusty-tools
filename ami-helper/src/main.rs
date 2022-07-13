@@ -121,6 +121,16 @@ enum Architecture {
     Arm64,
 }
 
+impl Architecture {
+    fn instance_group(&self) -> &'static str {
+        match self {
+            Self::All => panic!(),
+            Self::Amd64 => "t3a",
+            Self::Arm64 => "t4g",
+        }
+    }
+}
+
 impl From<Architecture> for &str {
     fn from(value: Architecture) -> &'static str {
         match value {
@@ -137,9 +147,13 @@ struct SelectOptions {
     architecture: Architecture,
     singleton: bool,
     just_ami: bool,
+    smoke_test: bool,
 }
 
 impl SelectOptions {
+    fn can_only_be_one(&self) -> bool {
+        self.singleton || self.smoke_test
+    }
     fn include_amazon(&self) -> bool {
         match self.operating_system {
             OperatingSystem::All | OperatingSystem::Amazon => true,
@@ -157,6 +171,9 @@ impl SelectOptions {
             OperatingSystem::All | OperatingSystem::Ubuntu => true,
             _ => false,
         }
+    }
+    fn instance_group(&self) -> &'static str {
+        self.architecture.instance_group()
     }
 }
 
@@ -182,6 +199,7 @@ fn build_just_ami_arg<'a>() -> Arg<'a> {
         .help("Output just the selected AMIs")
         .short('j')
         .long("just-ami")
+        .conflicts_with("smoke-test")
         .takes_value(false)
         .multiple(false)
         .required(false)
@@ -203,6 +221,18 @@ fn build_singleton_arg<'a>() -> Arg<'a> {
         .help("Exit with an error if more than one AMI is selected")
         .short('1')
         .long("singleton")
+        .takes_value(false)
+        .multiple(false)
+        .required(false)
+}
+
+fn build_smoke_test_arg<'a>() -> Arg<'a> {
+    Arg::new("smoke-test")
+        .help("Output arguments used in the smoke tests.  This argument implies --singleton.")
+        .short('s')
+        .long("smoke-test")
+        .conflicts_with("just-ami")
+        .requires("architecture")
         .takes_value(false)
         .multiple(false)
         .required(false)
@@ -255,6 +285,10 @@ fn get_singleton_arg(matches: &ArgMatches) -> Result<bool, clap::Error> {
     Ok(matches.is_present("singleton"))
 }
 
+fn get_smoke_test_arg(matches: &ArgMatches) -> Result<bool, clap::Error> {
+    Ok(matches.is_present("smoke-test"))
+}
+
 mod select {
     use super::SelectOptions;
     use clap::{App, AppSettings, ArgMatches, SubCommand};
@@ -269,6 +303,7 @@ mod select {
             .arg(super::build_just_ami_arg())
             .arg(super::build_operating_system_arg())
             .arg(super::build_singleton_arg())
+            .arg(super::build_smoke_test_arg())
     }
 
     pub(crate) fn get_options(matches: &ArgMatches) -> Result<SelectOptions, clap::Error> {
@@ -276,11 +311,13 @@ mod select {
         let architecture = super::get_architecture_arg(matches)?;
         let just_ami = super::get_just_ami_arg(matches)?;
         let singleton = super::get_singleton_arg(matches)?;
+        let smoke_test = super::get_smoke_test_arg(matches)?;
         Ok(SelectOptions {
             operating_system,
             architecture,
             singleton,
             just_ami,
+            smoke_test,
         })
     }
 }
@@ -1038,14 +1075,16 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
         }
     }
 
-    if options.singleton && details.len() != 1 {
+    if options.can_only_be_one() && details.len() != 1 {
         return Err(Box::new(custom_error(format!(
-            "singleton was specified but {} AMIs were selected",
+            "singleton or smoke-test was specified but {} AMIs were selected",
             details.len()
         ))));
     }
 
-    if options.just_ami {
+    if options.smoke_test {
+        print!("--image-id {} --instance-type {}.medium", details[0].ami, options.instance_group());
+    } else if options.just_ami {
         if details.len() == 1 {
             print!("{}", details[0].ami);
         } else {
