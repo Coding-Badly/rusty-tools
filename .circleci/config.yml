@@ -1,0 +1,12 @@
+version: 2.1
+
+workflows:
+  version: 2
+  example-1:
+  jobs:
+    - example-1
+
+jobs:
+  example-1:
+    steps:
+      - checkout
