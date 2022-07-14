@@ -16,10 +16,15 @@ jobs:
       continue-on-error: true
     - name: "Update Rust to the latest stable version"
       run: rustup update stable
-#    - name: Fetch Dependencies
-#      run: cargo fetch
     - name: Build release version
       run: cargo build --release
+    - name: "Brag #1"
+      run: find ./target -name "ami-helper"
+    - uses: actions/upload-artifact@v3
+      with:
+        name: ami-helper-macos-1
+        path: ./target/release/ami-helper
+        retention-days: 6
 
 #  job-linux-1:
 #    name: "Build the Linux version of ami-helper"
@@ -41,9 +46,6 @@ jobs:
 #      continue-on-error: true
 #    - name: "Update Rust to the latest stable version"
 #      run: rustup update stable
-#    - name: Fetch Dependencies
-#      run: cargo fetch
-#      shell: bash
 #    - name: Build release version
 #      run: cargo build --target $(uname -m)-unknown-linux-musl --release
 #    - name: "Brag #1"
@@ -64,9 +66,6 @@ jobs:
 #      continue-on-error: true
 #    - name: "Update Rust to the latest stable version"
 #      run: rustup update stable
-#    - name: Fetch Dependencies
-#      run: cargo fetch
-#      shell: bash
 #    - name: Build release version
 #      run: cargo build --release
 #    - uses: actions/upload-artifact@v3
