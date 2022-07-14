@@ -11,8 +11,15 @@ jobs:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@master
-    - name: "Have Rust?"
-      run: cargo version
+    - name: "Remove Rust documentation"
+      run: rustup component remove rust-docs
+      continue-on-error: true
+    - name: "Update Rust to the latest stable version"
+      run: rustup update stable
+    - name: Fetch Dependencies
+      run: cargo fetch
+    - name: Build release version
+      run: cargo build --release
 
 #  job-linux-1:
 #    name: "Build the Linux version of ami-helper"
