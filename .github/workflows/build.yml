@@ -8,6 +8,7 @@ on:
 jobs:
 
   job-macos-1:
+    name: "Build the macOS / AMD64 version of ami-helper"
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@master
@@ -22,12 +23,12 @@ jobs:
       run: find ./target -name "ami-helper"
     - uses: actions/upload-artifact@v3
       with:
-        name: ami-helper-macos-1
+        name: ami-helper-macos-amd64
         path: ./target/release/ami-helper
         retention-days: 6
 
   job-linux-1:
-    name: "Build the Linux version of ami-helper"
+    name: "Build the Linux / AMD64 version of ami-helper"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
@@ -52,12 +53,12 @@ jobs:
       run: find ./target -name "ami-helper"
     - uses: actions/upload-artifact@v3
       with:
-        name: ami-helper-linux-1
+        name: ami-helper-linux-amd64
         path: ./target/x86_64-unknown-linux-musl/release/ami-helper
         retention-days: 6
 
   job-windows-1:
-    name: "Build the Windows version of ami-helper"
+    name: "Build the Windows / AMD64 version of ami-helper"
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@master
@@ -70,7 +71,7 @@ jobs:
       run: cargo build --release
     - uses: actions/upload-artifact@v3
       with:
-        name: ami-helper-windows-1
+        name: ami-helper-windows-amd64
         path: ./target/release/ami-helper.exe
         retention-days: 6
 
@@ -85,31 +86,33 @@ jobs:
       - name: "Download the Linux version"
         uses: actions/download-artifact@v3
         with:
-          name: ami-helper-linux-1
-          path: ./release/linux
+          name: ami-helper-linux-amd64
+          path: ./release/linux/amd64
       - name: "Download the macOS version"
         uses: actions/download-artifact@v3
         with:
-          name: ami-helper-macos-1
-          path: ./release/macos
+          name: ami-helper-macos-amd64
+          path: ./release/macos/amd64
       - name: "Download the Windows version"
         uses: actions/download-artifact@v3
         with:
-          name: ami-helper-windows-1
-          path: ./release/windows
+          name: ami-helper-windows-amd64
+          path: ./release/windows/amd64
+      - name: "Create a staging area"
+        run: mkdir stage
       - name: "Rename the artifacts to include the operating system and architecture."
         run: |
-          mv ./release/linux/ami-helper ./release/linux/ami-helper.linux.amd64
-          mv ./release/macos/ami-helper ./release/macos/ami-helper.macos.amd64
-          mv ./release/windows/ami-helper.exe ./release/macos/ami-helper.windows.amd64
+          mv ./release/linux/amd64/ami-helper ./stage/ami-helper.linux.amd64
+          mv ./release/macos/amd64/ami-helper ./stage/ami-helper.macos.amd64
+          mv ./release/windows/amd64/ami-helper.exe ./stage/ami-helper.windows.amd64
       - name: "Brag #1"
         run: find ./release
+      - name: "Brag #2"
+        run: find ./stage
       - name: Release
         uses: softprops/action-gh-release@v1
         id: release
         with:
           tag_name: "current"
           files: |
-            ./release/linux/ami-helper.linux.amd64
-            ./release/macos/ami-helper.macos.amd64
-            ./release/windows/ami-helper.windows.amd64
+            ./stage/*
