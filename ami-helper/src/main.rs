@@ -64,6 +64,7 @@ enum OperatingSystem {
     Amazon,
     Debian,
     Ubuntu,
+    Windows,
 }
 
 impl OperatingSystem {
@@ -79,6 +80,12 @@ impl std::fmt::Display for OperatingSystem {
     }
 }
 
+impl From<OperatingSystem> for &str {
+    fn from(value: OperatingSystem) -> &'static str {
+        (&value).into()
+    }
+}
+
 impl From<&OperatingSystem> for &str {
     fn from(value: &OperatingSystem) -> &'static str {
         match value {
@@ -86,6 +93,7 @@ impl From<&OperatingSystem> for &str {
             OperatingSystem::Amazon => "Amazon Linux",
             OperatingSystem::Debian => "Debian",
             OperatingSystem::Ubuntu => "Ubuntu",
+            OperatingSystem::Windows => "Windows",
         }
     }
 }
@@ -97,6 +105,7 @@ impl From<&OperatingSystem> for usize {
             OperatingSystem::Amazon => 2,
             OperatingSystem::Debian => 3,
             OperatingSystem::Ubuntu => 4,
+            OperatingSystem::Windows => 5,
         }
     }
 }
@@ -174,6 +183,12 @@ impl SelectOptions {
             _ => false,
         }
     }
+    fn include_windows(&self) -> bool {
+        match self.operating_system {
+            OperatingSystem::All | OperatingSystem::Windows => true,
+            _ => false,
+        }
+    }
     fn instance_group(&self) -> &'static str {
         self.architecture.instance_group()
     }
@@ -215,7 +230,7 @@ fn build_operating_system_arg<'a>() -> Arg<'a> {
         .takes_value(true)
         .multiple(false)
         .required(false)
-        .value_parser(["all", "amazon", "debian", "ubuntu"])
+        .value_parser(["all", "amazon", "debian", "ubuntu", "windows"])
 }
 
 fn build_region_arg<'a>() -> Arg<'a> {
@@ -285,6 +300,7 @@ fn get_operating_system_arg(matches: &ArgMatches) -> Result<OperatingSystem, cla
             "amazon" => OperatingSystem::Amazon,
             "debian" => OperatingSystem::Debian,
             "ubuntu" => OperatingSystem::Ubuntu,
+            "windows" => OperatingSystem::Windows,
             _ => {
                 panic!("The operating-system option has a bug.  This state should be unreachable.")
             }
@@ -785,13 +801,20 @@ impl NameAmiPairGetter {
     }
 }
 
-fn convert_pairs_to_details(
+fn convert_all(_name: &str, _split: &Vec<&str>) -> bool {
+    false
+}
+
+fn convert_pairs_to_details<'a>(
     operating_system: OperatingSystem,
+    extra: Option<StringBitmask>,
     names: Vec<String>,
     amis: Vec<String>,
     all_segments: &mut StringsToBitmask,
     segment_separator: char,
-) -> Vec<AmiDetail> {
+    ignore: &'a dyn Fn(&str, &Vec<&str>) -> bool,
+) -> Vec<AmiDetail>
+{
     let as_str: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
     let prefix = common_prefix(&as_str, '/');
     let stripped_names: Vec<&str> = as_str
@@ -800,8 +823,17 @@ fn convert_pairs_to_details(
         .collect();
     let mut details = Vec::new();
     let os_bitmask = all_segments.bitmask_from(Some((&operating_system).into()));
+    let extra_bitmask = if let Some(extra) = extra {
+        os_bitmask | extra
+    } else {
+        os_bitmask
+    };
     for (name, ami) in stripped_names.iter().zip(amis.into_iter()) {
-        let bitmask = all_segments.bitmask_from(name.split(segment_separator)) | os_bitmask;
+        let split: Vec<&str> = name.split(segment_separator).collect();
+        if ignore(name, &split) {
+            continue;
+        }
+        let bitmask = all_segments.bitmask_from(split.into_iter()) | extra_bitmask;
         details.push(AmiDetail {
             operating_system,
             name: name.to_string(),
@@ -962,6 +994,44 @@ where
     Box::new(rv)
 }
 
+fn create_preferred_filter_for_windows<'a, I>(
+    details: I,
+    all_segments: &mut StringsToBitmask,
+) -> Box<dyn StringBitmaskFilter>
+where
+    I: IntoIterator<Item = &'a AmiDetail>,
+{
+    let match_version = regex::Regex::new(r"\-(20[0-9][0-9])\-").unwrap();
+    let mut versions = Vec::new();
+    for detail in details.into_iter() {
+        if let Some(captures) = match_version.captures(&detail.name) {
+            if let Some(version) = captures.get(1) {
+                versions.push(version.as_str());
+            }
+        }
+    }
+    versions.sort();
+
+    if versions.len() > 0 {
+        let version = versions.last().unwrap();
+
+        let mut mask = StringsToBitmaskBuilder::new(all_segments);
+        mask.update_one(version);
+        mask.update(["English", "Full", "Base"]);
+        let mask = mask.inner();
+
+        let mut value = StringsToBitmaskBuilder::new(all_segments);
+        value.update_one(&version);
+        value.update(["English", "Full", "Base"]);
+        let value = value.inner();
+
+        Box::new(MaskEqualsValueFilter::new(mask, value))
+    } else {
+        Box::new(OrFilter::new())
+    }
+
+}
+
 struct DetailsReporter {
     os_width: usize,
     name_width: usize,
@@ -1038,7 +1108,7 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
         all_segments.combining("kernel");
         all_segments.clear_ignore();
         let details =
-            convert_pairs_to_details(OperatingSystem::Amazon, names, amis, &mut all_segments, '-');
+            convert_pairs_to_details(OperatingSystem::Amazon, None, names, amis, &mut all_segments, '-', &convert_all);
         let preferred = create_preferred_filter_for_amazon(&details, &mut all_segments);
         let amazon = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(amazon);
@@ -1054,7 +1124,7 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
             DATE_SERIAL.is_match(s)
         });
         let details =
-            convert_pairs_to_details(OperatingSystem::Debian, names, amis, &mut all_segments, '/');
+            convert_pairs_to_details(OperatingSystem::Debian, None, names, amis, &mut all_segments, '/', &convert_all);
         let preferred = create_preferred_filter_for_debian(&details, &mut all_segments);
         let debian = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(debian);
@@ -1072,11 +1142,46 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
             DATE_REVISION.is_match(s)
         });
         let details =
-            convert_pairs_to_details(OperatingSystem::Ubuntu, names, amis, &mut all_segments, '/');
+            convert_pairs_to_details(OperatingSystem::Ubuntu, None, names, amis, &mut all_segments, '/', &convert_all);
         let preferred = create_preferred_filter_for_ubuntu(&details, &mut all_segments);
         let ubuntu = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(ubuntu);
     }
+
+    if options.include_windows() {
+        let (names, amis) = getter
+            .get_pairs("/aws/service/ami-windows-latest")
+            .await;
+        all_segments.clear_combining();
+        all_segments.clear_ignore();
+        let ab = all_segments.bitmask_from(["amd64"]);
+        let details =
+            convert_pairs_to_details(OperatingSystem::Windows, Some(ab), names, amis, &mut all_segments, '-', &|n, s| {
+                if !n.starts_with("Windows_Server") {
+                    return true;
+                }
+                static IGNORE_LIST: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+                    HashSet::from(["Deep", "Learning", "EKS_Optimized", "HyperV",
+                        "Czech", "Dutch",
+                        "French", "German", "Hungarian", "Italian", "Japanese", "Korean", "Polish",
+                        "Portuguese_Brazil", "Portuguese_Portugal", "Russian", "Spanish", "Swedish",
+                        "Tesla", "Turkish", ])
+                });
+                for rover in s {
+                    if IGNORE_LIST.contains(rover) {
+                        return true;
+                    }
+                    if rover.starts_with("Containers") || rover.starts_with("Chinese")
+                        || rover.starts_with("SQL") || rover.starts_with("ECS") {
+                        return true;
+                    }
+                }
+                false
+            });
+        let preferred = create_preferred_filter_for_windows(&details, &mut all_segments);
+        let windows = AmiDetailsWithFilter::new(details, preferred);
+        operating_systems.push(windows);
+}
 
     let architecture_filter: Box<dyn StringBitmaskFilter> =
         if options.architecture != Architecture::All {
