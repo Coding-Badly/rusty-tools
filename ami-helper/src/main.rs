@@ -1229,26 +1229,28 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
 }
 
 async fn inner_main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut errors = Vec::new();
-    match var("AWS_ACCESS_KEY_ID") {
-        Err(VarError::NotPresent) => errors.push("AWS_ACCESS_KEY_ID is not set.  It must be set to a valid AWS access key ID."),
-        Err(VarError::NotUnicode(_)) => errors.push("While AWS_ACCESS_KEY_ID is set it is not valid Unicode.  It must be set to a valid AWS access key ID."),
-        Ok(_) => {}
-    }
-    match var("AWS_SECRET_ACCESS_KEY") {
-        Err(VarError::NotPresent) => errors.push("AWS_SECRET_ACCESS_KEY is not set.  It must be set to a valid AWS access key ID."),
-        Err(VarError::NotUnicode(_)) => errors.push("While AWS_SECRET_ACCESS_KEY is set it is not valid Unicode.  It must be set to a valid AWS access key ID."),
-        Ok(_) => {}
-    }
-    if errors.len() > 0 {
-        return Err(Box::new(custom_error(errors.join("  "))).into());
-    }
-
     let raw_args = std::env::args().skip(1).collect::<Vec<String>>();
     let t = get_ami_helper_command(&raw_args);
     match t {
         Ok(Some(command)) => match command {
-            AmiHelperCommand::Select(options) => do_select(options).await,
+            AmiHelperCommand::Select(options) => {
+                let mut errors = Vec::new();
+                match var("AWS_ACCESS_KEY_ID") {
+                    Err(VarError::NotPresent) => errors.push("AWS_ACCESS_KEY_ID is not set.  It must be set to a valid AWS access key ID."),
+                    Err(VarError::NotUnicode(_)) => errors.push("While AWS_ACCESS_KEY_ID is set it is not valid Unicode.  It must be set to a valid AWS access key ID."),
+                    Ok(_) => {}
+                }
+                match var("AWS_SECRET_ACCESS_KEY") {
+                    Err(VarError::NotPresent) => errors.push("AWS_SECRET_ACCESS_KEY is not set.  It must be set to a valid AWS access key ID."),
+                    Err(VarError::NotUnicode(_)) => errors.push("While AWS_SECRET_ACCESS_KEY is set it is not valid Unicode.  It must be set to a valid AWS access key ID."),
+                    Ok(_) => {}
+                }
+                if errors.len() == 0 {
+                    do_select(options).await
+                } else {
+                    Err(Box::new(custom_error(errors.join("  "))).into())
+                }
+            }
             AmiHelperCommand::Version => {
                 const VERSION: &str = env!("CARGO_PKG_VERSION");
                 println!("{}", VERSION);

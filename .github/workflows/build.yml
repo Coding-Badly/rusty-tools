@@ -3,7 +3,7 @@ name: "Build ami-helper"
 on:
   push:
     branchs:
-      - master
+      - main
 
 jobs:
 
