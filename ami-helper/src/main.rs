@@ -776,6 +776,9 @@ impl NameAmiPairGetter {
         Self { client }
     }
     async fn get_pairs(&self, path: &str) -> (Vec<String>, Vec<String>) {
+        // Note: Bear in mind that `into_paginator` suppresses errors.  You'll notice a lack of the
+        // question mark operator or any other error handling.  Instead an empty list is returned.
+        // No doubt some poor sole will curse that decision.
         let mut response = self
             .client
             .get_parameters_by_path()
@@ -813,8 +816,7 @@ fn convert_pairs_to_details<'a>(
     all_segments: &mut StringsToBitmask,
     segment_separator: char,
     ignore: &'a dyn Fn(&str, &Vec<&str>) -> bool,
-) -> Vec<AmiDetail>
-{
+) -> Vec<AmiDetail> {
     let as_str: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
     let prefix = common_prefix(&as_str, '/');
     let stripped_names: Vec<&str> = as_str
@@ -1012,6 +1014,13 @@ where
     }
     versions.sort();
 
+    /*
+        At some point we may add "oldest supported version" to `ami-helper`.  For Windows the
+        correct choice is...
+
+            Microsoft Windows Server 2012 R2 Base
+            ami-09f1b97927dbacf81
+    */
     if versions.len() > 0 {
         let version = versions.last().unwrap();
 
@@ -1029,7 +1038,6 @@ where
     } else {
         Box::new(OrFilter::new())
     }
-
 }
 
 struct DetailsReporter {
@@ -1107,8 +1115,15 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
             .await;
         all_segments.combining("kernel");
         all_segments.clear_ignore();
-        let details =
-            convert_pairs_to_details(OperatingSystem::Amazon, None, names, amis, &mut all_segments, '-', &convert_all);
+        let details = convert_pairs_to_details(
+            OperatingSystem::Amazon,
+            None,
+            names,
+            amis,
+            &mut all_segments,
+            '-',
+            &convert_all,
+        );
         let preferred = create_preferred_filter_for_amazon(&details, &mut all_segments);
         let amazon = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(amazon);
@@ -1118,13 +1133,18 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
         let (names, amis) = getter.get_pairs("/aws/service/debian/release").await;
         all_segments.clear_combining();
         all_segments.ignore(&|s| {
-            static DATE_SERIAL: Lazy<Regex> = Lazy::new(|| {
-                Regex::new(r"^\d{8}-\d+$").unwrap()
-            });
+            static DATE_SERIAL: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\d{8}-\d+$").unwrap());
             DATE_SERIAL.is_match(s)
         });
-        let details =
-            convert_pairs_to_details(OperatingSystem::Debian, None, names, amis, &mut all_segments, '/', &convert_all);
+        let details = convert_pairs_to_details(
+            OperatingSystem::Debian,
+            None,
+            names,
+            amis,
+            &mut all_segments,
+            '/',
+            &convert_all,
+        );
         let preferred = create_preferred_filter_for_debian(&details, &mut all_segments);
         let debian = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(debian);
@@ -1136,52 +1156,83 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
             .await;
         all_segments.clear_combining();
         all_segments.ignore(&|s| {
-            static DATE_REVISION: Lazy<Regex> = Lazy::new(|| {
-                Regex::new(r"^\d{8}(?:[.]\d+)?$").unwrap()
-            });
+            static DATE_REVISION: Lazy<Regex> =
+                Lazy::new(|| Regex::new(r"^\d{8}(?:[.]\d+)?$").unwrap());
             DATE_REVISION.is_match(s)
         });
-        let details =
-            convert_pairs_to_details(OperatingSystem::Ubuntu, None, names, amis, &mut all_segments, '/', &convert_all);
+        let details = convert_pairs_to_details(
+            OperatingSystem::Ubuntu,
+            None,
+            names,
+            amis,
+            &mut all_segments,
+            '/',
+            &convert_all,
+        );
         let preferred = create_preferred_filter_for_ubuntu(&details, &mut all_segments);
         let ubuntu = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(ubuntu);
     }
 
     if options.include_windows() {
-        let (names, amis) = getter
-            .get_pairs("/aws/service/ami-windows-latest")
-            .await;
+        let (names, amis) = getter.get_pairs("/aws/service/ami-windows-latest").await;
         all_segments.clear_combining();
         all_segments.clear_ignore();
         let ab = all_segments.bitmask_from(["amd64"]);
-        let details =
-            convert_pairs_to_details(OperatingSystem::Windows, Some(ab), names, amis, &mut all_segments, '-', &|n, s| {
+        let details = convert_pairs_to_details(
+            OperatingSystem::Windows,
+            Some(ab),
+            names,
+            amis,
+            &mut all_segments,
+            '-',
+            &|n, s| {
                 if !n.starts_with("Windows_Server") {
                     return true;
                 }
                 static IGNORE_LIST: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-                    HashSet::from(["Deep", "Learning", "EKS_Optimized", "HyperV",
-                        "Czech", "Dutch",
-                        "French", "German", "Hungarian", "Italian", "Japanese", "Korean", "Polish",
-                        "Portuguese_Brazil", "Portuguese_Portugal", "Russian", "Spanish", "Swedish",
-                        "Tesla", "Turkish", ])
+                    HashSet::from([
+                        "Deep",
+                        "Learning",
+                        "EKS_Optimized",
+                        "HyperV",
+                        "Czech",
+                        "Dutch",
+                        "French",
+                        "German",
+                        "Hungarian",
+                        "Italian",
+                        "Japanese",
+                        "Korean",
+                        "Polish",
+                        "Portuguese_Brazil",
+                        "Portuguese_Portugal",
+                        "Russian",
+                        "Spanish",
+                        "Swedish",
+                        "Tesla",
+                        "Turkish",
+                    ])
                 });
                 for rover in s {
                     if IGNORE_LIST.contains(rover) {
                         return true;
                     }
-                    if rover.starts_with("Containers") || rover.starts_with("Chinese")
-                        || rover.starts_with("SQL") || rover.starts_with("ECS") {
+                    if rover.starts_with("Containers")
+                        || rover.starts_with("Chinese")
+                        || rover.starts_with("SQL")
+                        || rover.starts_with("ECS")
+                    {
                         return true;
                     }
                 }
                 false
-            });
+            },
+        );
         let preferred = create_preferred_filter_for_windows(&details, &mut all_segments);
         let windows = AmiDetailsWithFilter::new(details, preferred);
         operating_systems.push(windows);
-}
+    }
 
     let architecture_filter: Box<dyn StringBitmaskFilter> =
         if options.architecture != Architecture::All {
@@ -1208,7 +1259,11 @@ async fn do_select(options: SelectOptions) -> Result<(), Box<dyn std::error::Err
     }
 
     if options.smoke_test {
-        print!("--image-id \"{}\" --instance-type \"{}.medium\"", details[0].ami, options.instance_group());
+        print!(
+            "--image-id \"{}\" --instance-type \"{}.medium\"",
+            details[0].ami,
+            options.instance_group()
+        );
     } else if options.just_ami {
         if details.len() == 1 {
             print!("{}", details[0].ami);
